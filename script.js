@@ -35,6 +35,15 @@ const fetchSinglePlayer = async (playerId) => {
 
 const addNewPlayer = async (playerObj) => {
   try {
+    const response = await fetch(APIURL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(playerObj),
+    });
+    const data = await response.json();
+    return data;
   } catch (err) {
     console.error("Oops, something went wrong with adding that player!", err);
   }
@@ -42,6 +51,14 @@ const addNewPlayer = async (playerObj) => {
 
 const removePlayer = async (playerId) => {
   try {
+    const response = await fetch(`${APIURL}${playerId}`, {
+      method: "DELETE",
+    });
+    if (response.ok) {
+      return true;
+    } else {
+      throw new Error("Failed to delete player");
+    }
   } catch (err) {
     console.error(
       `Whoops, trouble removing player #${playerId} from the roster!`,
