@@ -22,19 +22,51 @@ const fetchAllPlayers = async () => {
   }
 };
 
-const fetchSinglePlayer = async (playerId) => {
+// const fetchSinglePlayer = async (playerId) => {
+//   try {
+//     const response = await fetch(`${APIURL}${playerId}`);
+//     const player = await response.json();
+//     console.log(player);
+//     return player;
+//   } catch (err) {
+//     console.error(`Oh no, trouble fetching player #${playerId}!`, err);
+//   }
+// };
+
+async function fetchSinglePlayer(cohortName, playerId) {
+  const url = `https://fsa-puppy-bowl.herokuapp.com/api/${cohortName}/players/${playerId}`;
+
   try {
-    const response = await fetch(`${APIURL}${playerId}`);
-    const player = await response.json();
-    console.log(player);
-    return player;
+    const response = await fetch(url);
+    const result = await response.json();
+
+    if (result.success) {
+      console.log(result.data.player);
+      return result.data.player; // Return the player details
+    } else {
+      console.error("Error fetching player:", result.error);
+      return null;
+    }
   } catch (err) {
-    console.error(`Oh no, trouble fetching player #${playerId}!`, err);
+    console.error("Network error:", err);
+    return null;
   }
-};
+}
+
+// Using fetchSinglePlayer to test
+fetchSinglePlayer("2109-UNF-HY-WEB-PT", 1);
 
 const addNewPlayer = async (playerObj) => {
   try {
+    const response = await fetch(APIURL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(playerObj),
+    });
+    const data = await response.json();
+    return data;
   } catch (err) {
     console.error("Oops, something went wrong with adding that player!", err);
   }
@@ -42,6 +74,14 @@ const addNewPlayer = async (playerObj) => {
 
 const removePlayer = async (playerId) => {
   try {
+    const response = await fetch(`${APIURL}${playerId}`, {
+      method: "DELETE",
+    });
+    if (response.ok) {
+      return true;
+    } else {
+      throw new Error("Failed to delete player");
+    }
   } catch (err) {
     console.error(
       `Whoops, trouble removing player #${playerId} from the roster!`,
@@ -78,21 +118,80 @@ const renderAllPlayers = async (playersList) => {
     }
 
     const playerHTML = playersList
-      .map((players) => {
+      .map((player) => {
         return `
-            <div class="players">
-              <h2>${players.name}</h2>
-              <p>Breed: ${players.breed}</p>
-              <p>Status : ${players.status}</p>
-              <img src="${players.imageUrl}" alt="${players.breed}">
-            </div>
-          `;
+          <div class="players" data-player-id="${player.id}">
+            <h2>${player.name}</h2>
+            <p>Breed: ${player.breed}</p>
+            <p>Status : ${player.status}</p>
+            <img src="${player.imageUrl}" alt="${player.breed}">
+            <button class="delete-player">Remove from Roster</button>
+          </div>
+        `;
       })
       .join("");
-
     playerContainer.innerHTML = playerHTML;
+
+    // Add event listeners to each player card
+    document.querySelectorAll(".players").forEach((card) => {
+      card.addEventListener("click", async (e) => {
+        const playerId = card.getAttribute("data-player-id"); // Use 'card' instead of 'e.currentTarget'
+        console.log("Clicked player ID:", playerId); // Debugging line
+
+        if (playerId) {
+          // Ensure playerId is not null or undefined
+          const playerDetails = await fetchSinglePlayer(cohortName, playerId);
+          console.log("Player details before displaying modal:", playerDetails); // Debugging line
+          displayModal(playerDetails);
+        } else {
+          console.error("Player ID is not defined!");
+        }
+      });
+    });
+
+    document.querySelectorAll(".delete-player").forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation(); // Prevent triggering the card's click event
+        const playerId = e.currentTarget
+          .closest(".players")
+          .getAttribute("data-player-id");
+        const isDeleted = await removePlayer(playerId);
+        if (isDeleted) {
+          // Refresh the players list after deleting a player
+          displayPlayers();
+        }
+      });
+    });
   } catch (err) {
     console.error("Uh oh, trouble rendering players!", err);
+  }
+};
+
+// Function to display the modal with player details
+const displayModal = (player) => {
+  // Ensure that the player object has the expected properties
+  console.log(player);
+  const modalHTML = `
+      <div class="modal" id="playerModal">
+          <div class="modal-content">
+              <h2>${player.name}</h2>
+              <p>Breed: ${player.breed}</p>
+              <p>Status: ${player.status}</p>
+              <img src="${player.imageUrl}" alt="${player.breed}" class="modal-image">
+              <button onclick="closeModal()">Close</button>
+          </div>
+      </div>
+  `;
+
+  document.body.insertAdjacentHTML("beforeend", modalHTML);
+  document.getElementById("playerModal").style.display = "block";
+};
+
+// Function to close the modal
+const closeModal = () => {
+  const modal = document.getElementById("playerModal");
+  if (modal) {
+    modal.remove();
   }
 };
 
@@ -103,7 +202,29 @@ const displayPlayers = async () => {
 
 displayPlayers();
 
-displayPlayers();
+const playerForm = document.getElementById("addPlayerForm");
+
+document.addEventListener("DOMContentLoaded", () => {
+  const playerForm = document.getElementById("addPlayerForm");
+
+  playerForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const newPlayer = {
+      name: document.getElementById("playerName").value,
+      breed: document.getElementById("playerBreed").value,
+      status: document.getElementById("playerStatus").value,
+      imageUrl: document.getElementById("playerImageUrl").value,
+    };
+
+    const addedPlayer = await addNewPlayer(newPlayer);
+    if (addedPlayer) {
+      // Refresh the players list after adding a new player
+      displayPlayers();
+    }
+  });
+});
+
 /**
  * It renders a form to the DOM, and when the form is submitted, it adds a new player to the database,
  * fetches all players from the database, and renders them to the DOM.
